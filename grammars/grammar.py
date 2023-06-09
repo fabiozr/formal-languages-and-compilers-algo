@@ -64,3 +64,33 @@ class Grammar:
 
         for symbol in production:
             self.productions[non_terminal][-1].append(symbol)
+
+    def replace_symbols(self):
+        chars = [chr(i) for i in range(ord("A"), ord("Z") + 1) if chr(i) != "S"]
+        symbols = [START] + chars
+        non_terminals = sorted(
+            sorted(list(self.non_terminals)), key=lambda x: (x != self.initial_symbol)
+        )
+        symbol_dict = dict(
+            zip(
+                non_terminals,
+                symbols,
+            )
+        )
+
+        new_productions: Productions = {}
+        for non_terminal, productions in self.productions.items():
+            new_productions[symbol_dict[non_terminal]] = []
+            for production in productions:
+                new_production: List[Union[Terminal, NonTerminal]] = []
+                for symbol in production:
+                    if symbol in symbol_dict:
+                        new_production.append(symbol_dict[symbol])
+                    else:
+                        new_production.append(symbol)
+                new_productions[symbol_dict[non_terminal]].append(new_production)
+
+        self.initial_symbol = symbol_dict[self.initial_symbol]
+        self._productions = new_productions
+
+        return self
