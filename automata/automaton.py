@@ -63,3 +63,17 @@ class Automaton:
 
     def move(self, state: State, symbol: Symbol) -> Set[State]:
         return self.transitions.get(state, {}).get(symbol, set())
+
+    def from_transition_function(self, transition_function: Transitions):
+        for state, transitions in transition_function.items():
+            parsed_state = state.replace(START, "").replace(FINAL, "")
+
+            if START in state:
+                self.initial_state = parsed_state
+            if FINAL in state:
+                self.final_states.add(parsed_state)
+
+            for symbol, next_states in transitions.items():
+                self.add_transition(parsed_state, symbol, next_states)
+
+        return self
