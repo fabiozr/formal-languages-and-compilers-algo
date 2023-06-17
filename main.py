@@ -19,6 +19,11 @@ dfa = nfa.to_dfa()
 print(dfa)
 print(repr(dfa))
 
+# minimized automaton
+dfa.minimize()
+print(dfa)
+print(repr(dfa))
+
 regular_grammar = dfa.to_regular_grammar().replace_symbols()
 print(regular_grammar)
 print(repr(regular_grammar))
