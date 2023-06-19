@@ -3,11 +3,33 @@ from automata.types import *
 from utils.disjoint_set import DisjointSet
 from .automaton import Automaton
 from grammars import RegularGrammar
+from re_to_dfa.operators import *
+from re_to_dfa.node import Node
+from tabulate import tabulate
 
 
 class DFA(Automaton):
     def __init__(self) -> None:
         super().__init__()
+
+    def __str__(self):
+        symbols = sorted(self.alphabet)
+        states = sorted(self.states, key=lambda state: (state != self.initial_state))
+
+        table = [[""] + symbols]
+
+        for state in states:
+            row = [state]
+            if state == self.initial_state:
+                row[0] = START + row[0]
+            if state in self.final_states:
+                row[0] = FINAL + row[0]
+            for symbol in symbols:
+                next_states = self._transitions[state][symbol]
+                row.append("".join(next_states))
+            table.append(row)
+
+        return tabulate(table, tablefmt="fancy_grid")
 
     # (b.1) Conversão de AFD para GR
     def to_regular_grammar(self) -> RegularGrammar:
@@ -153,7 +175,6 @@ class DFA(Automaton):
         union_alphabet = self.alphabet.union(automata.alphabet)
         union_transitions: Transitions = {}
         union_start_state = (self.initial_state, automata.initial_state)
-        
 
         # Add states from dfa1 and dfa2 to the union DFA
         for state1 in self.states:
@@ -166,16 +187,16 @@ class DFA(Automaton):
             state_reference = ",".join(state)
             if state[0] in self.final_states or state[1] in automata.final_states:
                 state_reference = FINAL + ",".join(state)
-            
+
             if state == union_start_state:
                 state_reference = START + ",".join(state)
-            
+
             union_transitions[state_reference] = {}
 
             for symbol in union_alphabet:
                 next_state1 = self.transitions[state[0]][symbol]
                 next_state2 = automata.transitions[state[1]][symbol]
-                
+
                 next_state1_str = ",".join(next_state1)
                 next_state2_str = ",".join(next_state2)
 
@@ -185,11 +206,10 @@ class DFA(Automaton):
 
                 union_transitions[state_reference][symbol] = next_state_str
 
-        
         union_dfa.from_transition_function(union_transitions)
 
         return union_dfa
-    
+
     def intersection(self, automata: "DFA") -> "DFA":
         intersectedDFA = DFA()
         intersected_states = set()
@@ -205,10 +225,10 @@ class DFA(Automaton):
             state_reference = ",".join(state)
             if state[0] in self.final_states and state[1] in automata.final_states:
                 state_reference = FINAL + ",".join(state)
-            
+
             if state == intersected_start_state:
                 state_reference = START + ",".join(state)
-            
+
             intersected_transitions[state_reference] = {}
 
             for symbol in intersected_alphabet:
@@ -227,3 +247,43 @@ class DFA(Automaton):
         intersectedDFA.from_transition_function(intersected_transitions)
 
         return intersectedDFA
+
+    def from_syntax_tree(self, tree):
+        dstates = [frozenset(tree.root.firstpos)]
+        vis = set()
+        statename = {}
+        while dstates:
+            state = dstates.pop()
+            if state in vis:
+                continue
+            vis.add(state)
+            statename.setdefault(state, f"q{len(statename)}")
+            if any(Node.nodelist[i].v == SIMBOLS["#"] for i in state):
+                self.final_states.add(state)
+            for a in tree.symbols:
+                z = set()
+                for i in state:
+                    node = Node.nodelist[i]
+                    if node.v == a:
+                        z |= node.followpos
+                if len(z):
+                    z = frozenset(z)
+                    dstates.append(z)
+                    self._transitions.setdefault(state, {})
+                    if chr(a) not in OPSMB:
+                        self._transitions[state][a] = z
+                    else:
+                        del self._transitions[state]
+
+        self.initial_state = "q0"
+        self.final_states = {statename[i] for i in self.final_states}
+
+        self._transitions = {
+            statename[k1]: {
+                chr(k2): statename[self._transitions[k1][k2]]
+                for k2 in self._transitions[k1]
+            }
+            for k1 in self._transitions
+        }
+
+        return self
