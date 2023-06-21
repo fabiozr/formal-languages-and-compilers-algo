@@ -48,9 +48,13 @@ print("-------------------- UNION/INTERSECTION OF DFAs ---------------------")
 
 # TODO test the minimization after union or intersection
 dfa2 = nfa2.to_dfa()
+a = dfa.union(dfa2)
+b = dfa.intersection(dfa2)
 print(dfa.union(dfa2))
+
+print(b.minimize())
 print(dfa.intersection(dfa2))
-# print(dfa.intersection(dfa2).minimize())
+print(dfa.intersection(dfa2).minimize())
 
 print("-------------------- DFA TO REGULAR GRAMMAR ---------------------")
 
@@ -66,4 +70,6 @@ rgx = Regex(r)
 tree = SyntaxTree(rgx.get_regex())
 dfa = DFA().from_syntax_tree(tree)
 print(dfa)
+print(repr(dfa))
+print(dfa.minimize())
 print(repr(dfa))

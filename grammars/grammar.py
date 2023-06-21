@@ -90,7 +90,7 @@ class Grammar:
                         new_production.append(symbol)
                 new_productions[symbol_dict[non_terminal]].append(new_production)
 
-        self.initial_symbol = symbol_dict[self.initial_symbol]
+        self.initial_symbol = symbol_dict["".join(self.initial_symbol)]
         self._productions = new_productions
 
         return self

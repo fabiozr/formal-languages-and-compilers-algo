@@ -17,7 +17,6 @@ class DFA(Automaton):
         states = sorted(self.states, key=lambda state: (state != self.initial_state))
 
         table = [[""] + symbols]
-
         for state in states:
             row = [state]
             if state == self.initial_state:
@@ -50,23 +49,28 @@ class DFA(Automaton):
 
         return grammar
 
+    def reachable_states(self) -> list[Set[State]]:
+        return list(
+            next_state
+            for next_states in self.transitions.values()
+            for next_state in next_states.values()
+        )
+
     def minimize(self) -> None:
         self.remove_unreachable_states()
         self.remove_dead_states()
-
         table = {}
-
         final_states = self.final_states
-        interate = True
-        states = sorted(self.states)
+        iterate = True
+        states = [self.states]
 
         for i, state in enumerate(states):
             for state2 in states[1 + i :]:
                 table[(state, state2)] = (state in final_states) != (
                     state2 in final_states
                 )
-        while interate:
-            interate = False
+        while iterate:
+            iterate = False
 
             for i, state in enumerate(states):
                 for state2 in states[i + 1 :]:
@@ -80,7 +84,7 @@ class DFA(Automaton):
 
                         if t1 != t2:
                             marked = table[list(t1)[0], list(t2)[0]]
-                            interate = interate or marked
+                            iterate = iterate or marked
                             table[(state, state2)] = marked
 
                             if marked:
@@ -89,7 +93,6 @@ class DFA(Automaton):
         d = DisjointSet(self.states)
         new_final_states = set()
         new_transitions = {}
-
         # form new states
         for k, v in table.items():
             if not v:
@@ -114,22 +117,23 @@ class DFA(Automaton):
                 v[symbol] = {"".join(aux)}
             new_transitions[k] = v
 
-        self.initial_state = "".join(d.find(self.initial_state))
+        self.initial_state = d.find(self.initial_state)
+        if isinstance(self.initial_state, list):
+            self.initial_state = "".join(self.initial_state)
         self._transitions = new_transitions
         self.final_states = new_final_states
+        return self
 
     def remove_unreachable_states(self):
+        next_states = self.reachable_states()
         reachable_states = set()
+        if isinstance(self.initial_state, set):
+            init_state = "".join(self.initial_state)
+            reachable_states.add(init_state)
 
-        start = [self.initial_state]
-
-        while start:
-            state = start.pop()
-
-            if state not in reachable_states:
-                for _, next_state in self.transitions[state].items():
-                    start += next_state
-            reachable_states.add(state)
+        for state in next_states:
+            state_str = "".join(state)
+            reachable_states.add(state_str)
 
         self._transitions = {
             k: v for k, v in self.transitions.items() if k in reachable_states
@@ -170,83 +174,69 @@ class DFA(Automaton):
     def union(self, automata: "DFA") -> "DFA":
         # Create a new DFA for the union
         union_dfa = DFA()
-
-        union_states = set()
         union_alphabet = self.alphabet.union(automata.alphabet)
         union_transitions: Transitions = {}
-        union_start_state = (self.initial_state, automata.initial_state)
-
+        union_final_states = set[str]()
+        union_start_state = "".join(self.initial_state) + "".join(
+            automata.initial_state
+        )
         # Add states from dfa1 and dfa2 to the union DFA
         for state1 in self.states:
             for state2 in automata.states:
-                union_states.add((state1, state2))
+                state1_str = "".join(state1)
+                state2_str = "".join(state2)
+                union_state_str = state1_str + state2_str
+                union_transitions.setdefault(union_state_str, {})
+                for symbol in union_alphabet:
+                    transition1 = self.transitions[state1].get(symbol)
+                    transition2 = automata.transitions[state2].get(symbol)
+                    if state1 in self.final_states or state2 in automata.final_states:
+                        union_final_states.add(union_state_str)
+                    next_state_set = set()
+                    t1_str = "".join(transition1)
+                    t2_str = "".join(transition2)
+                    t_value = t1_str + t2_str
+                    next_state_set.add(t_value)
+                    union_transitions[union_state_str][symbol] = next_state_set
 
-        # Compute transition function for the union DFA
-        for state in union_states:
-            # Set the final states of the union DFA
-            state_reference = ",".join(state)
-            if state[0] in self.final_states or state[1] in automata.final_states:
-                state_reference = FINAL + ",".join(state)
+        union_dfa.initial_state = "".join(union_start_state)
+        union_dfa.final_states = union_final_states
+        union_dfa._transitions = union_transitions
 
-            if state == union_start_state:
-                state_reference = START + ",".join(state)
-
-            union_transitions[state_reference] = {}
-
-            for symbol in union_alphabet:
-                next_state1 = self.transitions[state[0]][symbol]
-                next_state2 = automata.transitions[state[1]][symbol]
-
-                next_state1_str = ",".join(next_state1)
-                next_state2_str = ",".join(next_state2)
-
-                next_state_str = set()
-                next_state_str.add(next_state1_str)
-                next_state_str.add(next_state2_str)
-
-                union_transitions[state_reference][symbol] = next_state_str
-
-        union_dfa.from_transition_function(union_transitions)
-
-        return union_dfa
+        return self
 
     def intersection(self, automata: "DFA") -> "DFA":
-        intersectedDFA = DFA()
-        intersected_states = set()
-        intersected_start_state = (self.initial_state, automata.initial_state)
+        intersected_dfa = DFA()
+        intersected_final_states = set()
+        intersected_start_state = set()
+        initial_state = "".join(self.initial_state) + "".join(automata.initial_state)
+        intersected_start_state.add(initial_state)
         intersected_alphabet = self.alphabet.intersection(automata.alphabet)
         intersected_transitions = {}
 
         for state1 in self.states:
             for state2 in automata.states:
-                intersected_states.add((state1, state2))
+                state1_str = "".join(state1)
+                state2_str = "".join(state2)
+                intersected_state_str = state1_str + state2_str
+                intersected_transitions.setdefault(intersected_state_str, {})
+                for symbol in intersected_alphabet:
+                    transition1 = self.transitions[state1].get(symbol)
+                    transition2 = automata.transitions[state2].get(symbol)
+                    if state1 in self.final_states and state2 in automata.final_states:
+                        intersected_final_states.add(intersected_state_str)
+                    t_set = set()
+                    t1_str = "".join(transition1)
+                    t2_str = "".join(transition2)
+                    t_value = t1_str + t2_str
+                    t_set.add(t_value)
+                    intersected_transitions[intersected_state_str][symbol] = t_set
 
-        for state in intersected_states:
-            state_reference = ",".join(state)
-            if state[0] in self.final_states and state[1] in automata.final_states:
-                state_reference = FINAL + ",".join(state)
+        intersected_dfa.initial_state = "".join(intersected_start_state)
+        intersected_dfa.final_states = intersected_final_states
+        intersected_dfa._transitions = intersected_transitions
 
-            if state == intersected_start_state:
-                state_reference = START + ",".join(state)
-
-            intersected_transitions[state_reference] = {}
-
-            for symbol in intersected_alphabet:
-                next_state1 = self.transitions[state[0]][symbol]
-                next_state2 = automata.transitions[state[1]][symbol]
-
-                next_state1_str = ",".join(next_state1)
-                next_state2_str = ",".join(next_state2)
-
-                next_state_str = set()
-                next_state_str.add(next_state1_str)
-                next_state_str.add(next_state2_str)
-
-                intersected_transitions[state_reference][symbol] = next_state_str
-
-        intersectedDFA.from_transition_function(intersected_transitions)
-
-        return intersectedDFA
+        return intersected_dfa
 
     def from_syntax_tree(self, tree):
         dstates = [frozenset(tree.root.firstpos)]
@@ -275,15 +265,26 @@ class DFA(Automaton):
                     else:
                         del self._transitions[state]
 
-        self.initial_state = "q0"
-        self.final_states = {statename[i] for i in self.final_states}
+        initial_state = set()
+        initial_state.add("q0")
+        f_states = {statename[i] for i in self.final_states}
 
-        self._transitions = {
+        transit = {
             statename[k1]: {
                 chr(k2): statename[self._transitions[k1][k2]]
                 for k2 in self._transitions[k1]
             }
             for k1 in self._transitions
         }
+        for item in transit:
+            for symbol in self.alphabet:
+                set_value = set()
+                value = transit[item][chr(symbol)]
+                set_value.add(value)
+                transit[item][chr(symbol)] = set_value
+
+        self._transitions = transit
+        self.initial_state = "q0"
+        self.final_states = f_states
 
         return self
