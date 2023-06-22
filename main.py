@@ -57,10 +57,11 @@ print(b.minimize())
 print(dfa.intersection(dfa2))
 print(dfa.intersection(dfa2).minimize())
 
-print("-------------------- DFA TO REGULAR GRAMMAR ---------------------")
+print("-------------------- DFA TO RG / RG TO NFA ---------------------")
 
 regular_grammar = dfa.to_regular_grammar().replace_symbols()
 print(regular_grammar)
+print(regular_grammar.to_nfa(new_nfa))
 print(repr(regular_grammar))
 
 print("-------------------- REGULAR EXPRESSION TO DFA ---------------------")
@@ -74,3 +75,8 @@ print(a)
 print(repr(a))
 
 print(a.recognize_sentence("abb"))
+
+print("--------------------------------------------")
+new_nfa = NFA()
+print(regular_grammar)
+print(repr(regular_grammar))
