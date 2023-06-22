@@ -51,3 +51,22 @@ class NFA(Automaton):
                 if final_state in state:
                     dfa.final_states.add(state)
         return dfa
+
+    def recognize_sentence(self, sentence: str) -> bool:
+        dfa = self.to_dfa()
+        dfa.minimize()
+
+        if dfa.initial_state is None:
+            return False
+        current_state = dfa.initial_state
+
+        for char in sentence:
+            if char not in dfa.alphabet:
+                return False
+            current_state_str: str = "".join(current_state)
+            current_state = dfa.transitions[current_state_str].get(char)
+            if current_state is None:
+                return False
+        current_state_str = "".join(current_state)
+
+        return current_state_str in dfa.final_states

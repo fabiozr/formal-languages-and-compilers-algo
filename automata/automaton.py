@@ -77,3 +77,19 @@ class Automaton:
                 self.add_transition(parsed_state, symbol, next_states)
 
         return self
+
+    def recognize_sentence(self, sentence: str) -> bool:
+        if self.initial_state is None:
+            return False
+        current_state = self.initial_state
+
+        for char in sentence:
+            if char not in self.alphabet:
+                return False
+            current_state_str: str = "".join(current_state)
+            current_state = self.transitions[current_state_str].get(char)
+            if current_state is None:
+                return False
+        current_state_str = "".join(current_state)
+
+        return current_state_str in self.final_states

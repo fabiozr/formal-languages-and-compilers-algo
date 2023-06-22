@@ -31,6 +31,7 @@ nfa = NFA().from_transition_function(transitions)
 nfa2 = NFA().from_transition_function(transitions2)
 print(nfa)
 print(repr(nfa))
+print(nfa.recognize_sentence("ab"))
 
 print("-------------------- NFA TO DFA ---------------------")
 
@@ -68,8 +69,8 @@ r = "(a|b)*abb"
 print("Regular Expression: ", r)
 rgx = Regex(r)
 tree = SyntaxTree(rgx.get_regex())
-dfa = DFA().from_syntax_tree(tree)
-print(dfa)
-print(repr(dfa))
-print(dfa.minimize())
-print(repr(dfa))
+a = DFA().from_syntax_tree(tree)
+print(a)
+print(repr(a))
+
+print(a.recognize_sentence("abb"))
