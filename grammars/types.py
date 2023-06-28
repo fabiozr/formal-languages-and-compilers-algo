@@ -7,4 +7,5 @@ Terminal = str
 NonTerminal = str
 
 # Produções P : N → (N ∪ Σ)*
-Productions = Dict[NonTerminal, List[List[Union[Terminal, NonTerminal]]]]
+Production = List[Union[Terminal, NonTerminal]]
+Productions = Dict[NonTerminal, List[Production]]

@@ -1,10 +1,11 @@
 from typing import Set, List, Union
 from tabulate import tabulate
+from abc import ABC
 from .types import Terminal, NonTerminal, Productions
 from .constants import START
 
 
-class Grammar:
+class Grammar(ABC):
     def __init__(self) -> None:
         self.initial_symbol: NonTerminal = START
 
@@ -12,16 +13,23 @@ class Grammar:
 
     def __str__(self):
         non_terminals = sorted(
-            sorted(self.non_terminals), key=lambda x: (x != self.initial_symbol)
+            sorted(self.non_terminals),
+            key=lambda x: (self.initial_symbol not in x, x[0]),
         )
 
-        table = [["Symbols", "Productions"]]
+        table = [["Non Terminal", "Productions"]]
         for non_terminal in non_terminals:
             row = [non_terminal]
             productions = " | ".join(
                 [
                     " ".join(production)
-                    for production in sorted(self.productions[non_terminal])
+                    for production in sorted(
+                        self.productions[non_terminal],
+                        key=lambda x: (
+                            any(symbol != self.initial_symbol for symbol in x),
+                            x[0],
+                        ),
+                    )
                 ]
             )
             row.append(productions)
@@ -31,8 +39,6 @@ class Grammar:
 
     def __repr__(self) -> str:
         return f"Grammar(\n non_terminals={self.non_terminals},\n terminals={self.terminals},\n initial_symbol={self.initial_symbol},\n productions={self.productions}\n)"
-
-    # TODO - add validation method for grammar
 
     @property
     def non_terminals(self) -> Set[NonTerminal]:
@@ -57,7 +63,10 @@ class Grammar:
     def add_production(
         self, non_terminal: NonTerminal, production: List[Union[Terminal, NonTerminal]]
     ) -> None:
-        if non_terminal not in self.productions:
+        if production in self.productions.get(non_terminal, []):
+            print("TODO - Change this - Production already exists")
+            return
+        if non_terminal not in self.non_terminals:
             self.productions[non_terminal] = [[]]
         else:
             self.productions[non_terminal].append([])
@@ -65,32 +74,35 @@ class Grammar:
         for symbol in production:
             self.productions[non_terminal][-1].append(symbol)
 
-    def replace_symbols(self):
+    def replace_non_terminals(self):
         chars = [chr(i) for i in range(ord("A"), ord("Z") + 1) if chr(i) != "S"]
         symbols = [START] + chars
         non_terminals = sorted(
             sorted(list(self.non_terminals)), key=lambda x: (x != self.initial_symbol)
         )
-        symbol_dict = dict(
+        non_terminal_map = dict(
             zip(
                 non_terminals,
                 symbols,
             )
         )
 
-        new_productions: Productions = {}
-        for non_terminal, productions in self.productions.items():
-            new_productions[symbol_dict[non_terminal]] = []
-            for production in productions:
-                new_production: List[Union[Terminal, NonTerminal]] = []
-                for symbol in production:
-                    if symbol in symbol_dict:
-                        new_production.append(symbol_dict[symbol])
-                    else:
-                        new_production.append(symbol)
-                new_productions[symbol_dict[non_terminal]].append(new_production)
+        self.initial_symbol = non_terminal_map[self.initial_symbol]
+        self._productions = {
+            non_terminal_map[non_terminal]: [
+                [
+                    non_terminal_map[symbol] if symbol in non_terminal_map else symbol
+                    for symbol in production
+                ]
+                for production in productions
+            ]
+            for non_terminal, productions in self.productions.items()
+        }
 
-        self.initial_symbol = symbol_dict["".join(self.initial_symbol)]
-        self._productions = new_productions
+        return self.validate()
+
+    def validate(self):
+        if self.initial_symbol not in self.non_terminals:
+            raise Exception("Initial symbol is not in non terminals")
 
         return self

@@ -1,8 +1,6 @@
 from automata.constants import *
 from automata.types import *
-from utils.disjoint_set import DisjointSet
 from .automaton import Automaton
-from grammars import RegularGrammar
 from re_to_dfa.operators import *
 from re_to_dfa.node import Node
 from tabulate import tabulate
@@ -24,14 +22,16 @@ class DFA(Automaton):
             if state in self.final_states:
                 row[0] = FINAL + row[0]
             for symbol in symbols:
-                next_states = self._transitions[state][symbol]
+                next_states = self.move(state, symbol)
                 row.append("".join(next_states))
             table.append(row)
 
         return tabulate(table, tablefmt="fancy_grid")
 
     # (b.1) Conversão de AFD para GR
-    def to_regular_grammar(self) -> RegularGrammar:
+    def to_regular_grammar(self):
+        from grammars import RegularGrammar
+
         grammar = RegularGrammar()
 
         if self.initial_state is None:
@@ -47,130 +47,90 @@ class DFA(Automaton):
                     grammar.add_production(state, [symbol])
                 grammar.add_production(state, [symbol, next_state])
 
-        return grammar
+        return grammar.validate()
 
-    def reachable_states(self) -> list[Set[State]]:
-        return list(
-            next_state
-            for next_states in self.transitions.values()
-            for next_state in next_states.values()
-        )
+    # (c) Minimização de AFD
+    def minimize(self):
+        self._remove_unreachable_states()
+        self._remove_dead_states()
 
-    def minimize(self) -> None:
-        self.remove_unreachable_states()
-        self.remove_dead_states()
-        table = {}
-        final_states = self.final_states
-        iterate = True
-        states = [self.states]
+        P = [self.final_states, self.states - self.final_states]
+        W = [self.final_states, self.states - self.final_states]
+        while W:
+            A = W.pop()
+            for c in self.alphabet:
+                X = {state for state in self.states if self.transitions[state][c] & A}
+                for Y in P:
+                    if X & Y and Y - X:
+                        P.remove(Y)
+                        P.append(X & Y)
+                        P.append(Y - X)
+                        if Y in W:
+                            W.remove(Y)
+                            W.append(X & Y)
+                            W.append(Y - X)
+                        else:
+                            if len(X & Y) <= len(Y - X):
+                                W.append(X & Y)
+                            else:
+                                W.append(Y - X)
 
-        for i, state in enumerate(states):
-            for state2 in states[1 + i :]:
-                table[(state, state2)] = (state in final_states) != (
-                    state2 in final_states
-                )
-        while iterate:
-            iterate = False
+        state_to_group = {}
+        for group in P:
+            for state in group:
+                state_to_group[state] = str(group)
 
-            for i, state in enumerate(states):
-                for state2 in states[i + 1 :]:
-                    if table[(state, state2)]:
-                        continue
-
-                    # check if the states are distinguishable
-                    for symbol in self.alphabet:
-                        t1 = self.transitions[state][symbol]
-                        t2 = self.transitions[state2][symbol]
-
-                        if t1 != t2:
-                            marked = table[list(t1)[0], list(t2)[0]]
-                            iterate = iterate or marked
-                            table[(state, state2)] = marked
-
-                            if marked:
-                                break
-
-        d = DisjointSet(self.states)
-        new_final_states = set()
-        new_transitions = {}
-        # form new states
-        for k, v in table.items():
-            if not v:
-                d.union(k[0], k[1])
-
-        # form new final states
-        for s in d.get():
-            for item in s:
-                if item in self.final_states:
-                    final_state = "".join(d.find(item))
-                    new_final_states.add(final_state)
-                    break
-
-        # form new transitions
-        for k, v in self.transitions.items():
-            new_state = d.find(k)
-            symbols = v.keys()
-            if k in new_state:
-                k = "".join(new_state)
-            for symbol in symbols:
-                aux = d.find(list(v[symbol])[0])
-                v[symbol] = {"".join(aux)}
-            new_transitions[k] = v
-
-        self.initial_state = d.find(self.initial_state)
-        if isinstance(self.initial_state, list):
-            self.initial_state = "".join(self.initial_state)
-        self._transitions = new_transitions
-        self.final_states = new_final_states
-        return self
-
-    def remove_unreachable_states(self):
-        next_states = self.reachable_states()
-        reachable_states = set()
-        if isinstance(self.initial_state, set):
-            init_state = "".join(self.initial_state)
-            reachable_states.add(init_state)
-
-        for state in next_states:
-            state_str = "".join(state)
-            reachable_states.add(state_str)
-
+        self.initial_state = state_to_group[self.initial_state]
+        self.final_states = {state_to_group[state] for state in self.final_states}
         self._transitions = {
-            k: v for k, v in self.transitions.items() if k in reachable_states
+            state_to_group[state]: {
+                symbol: {state_to_group[list(next_state)[0]]}
+                for symbol, next_state in transitions.items()
+            }
+            for state, transitions in self.transitions.items()
         }
 
-        self.remove_unreachable_transitions()
+        return self.validate()
 
-    def remove_dead_states(self):
-        start = list(self.final_states)
-        alive_states = set(start)
+    def _remove_unreachable_states(self):
+        reachable_states: Set[State] = set(
+            list(next_state)[0]
+            for next_states in self.transitions.values()
+            for next_state in next_states.values()
+            if next_state
+        )
+        if self.initial_state:
+            reachable_states.add(self.initial_state)
 
-        while start:
-            final_state = start.pop()
+        self._transitions = {
+            state: transition
+            for state, transition in self.transitions.items()
+            if state in reachable_states
+        }
+
+    def _remove_dead_states(self):
+        uncheked_states = self.final_states.copy()
+        alive_states = self.final_states.copy()
+
+        while uncheked_states:
+            final_state = uncheked_states.pop()
             for state in self.states:
                 for _, next_state in self.transitions[state].items():
-                    if final_state == list(next_state)[0] and state not in alive_states:
-                        start.append(state)
+                    if (
+                        next_state
+                        and final_state == list(next_state)[0]
+                        and state not in alive_states
+                    ):
+                        uncheked_states.add(state)
                         alive_states.add(state)
 
         self._transitions = {
-            k: v for k, v in self.transitions.items() if k in alive_states
+            state: transitions
+            for state, transitions in self.transitions.items()
+            if state in alive_states
         }
 
-        self.remove_unreachable_transitions()
-
-    def remove_unreachable_transitions(self):
-        keys_to_remove = []
-        for k, v in self._transitions.items():
-            keys_to_remove.extend(
-                (k, key)
-                for key, element in v.items()
-                if list(element)[0] not in self.states
-            )
-
-        for k, key in keys_to_remove:
-            del self._transitions[k][key]
-
+    # (d.1) União de AFD
     def union(self, automata: "DFA") -> "DFA":
         # Create a new DFA for the union
         union_dfa = DFA()
@@ -205,6 +165,7 @@ class DFA(Automaton):
 
         return self
 
+    # (d.2) Interseção de AFD
     def intersection(self, automata: "DFA") -> "DFA":
         intersected_dfa = DFA()
         intersected_final_states = set()
@@ -288,3 +249,25 @@ class DFA(Automaton):
         self.final_states = f_states
 
         return self
+
+    def recognize_sentence(self, sentence: str) -> bool:
+        if self.initial_state is None:
+            return False
+
+        current_state = self.initial_state
+        for symbol in sentence:
+            current_state = list(self.move(current_state, symbol))[0]
+            if not current_state:
+                return False
+        return current_state in self.final_states
+
+    def validate(self):
+        super()._complete_transitions()
+        for state, transitions in self.transitions.items():
+            for symbol, next_states in transitions.items():
+                if len(next_states) > 1:
+                    raise Exception(
+                        f"DFA next state must be a single state. For {state} -{symbol}-> Got: {next_states}"
+                    )
+
+        return super().validate()
