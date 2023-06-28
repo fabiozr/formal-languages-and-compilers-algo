@@ -54,6 +54,7 @@ class DFA(Automaton):
         self._remove_unreachable_states()
         self._remove_dead_states()
 
+        # Usando o algoritmo de Hopcroft
         P = [self.final_states, self.states - self.final_states]
         W = [self.final_states, self.states - self.final_states]
         while W:
@@ -152,7 +153,7 @@ class DFA(Automaton):
 
         union_nfa.final_states = self.final_states.union(automata.final_states)
 
-        return union_nfa
+        return union_nfa.validate()
 
     # (d.2) Interseção de AFD
     def intersection(self, automata: "DFA"):
@@ -166,7 +167,7 @@ class DFA(Automaton):
             second_automata_complement
         ).to_dfa()
 
-        intersected_dfa = union_of_complements.complement()
+        intersected_dfa = union_of_complements.complement().validate()
 
         return intersected_dfa
 
@@ -178,6 +179,7 @@ class DFA(Automaton):
 
         return complemented_dfa
 
+    # (e) Diferença de AFD
     def from_syntax_tree(self, tree):
         dstates = [frozenset(tree.root.firstpos)]
         vis = set()

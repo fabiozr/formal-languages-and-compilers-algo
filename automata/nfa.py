@@ -55,7 +55,4 @@ class NFA(Automaton):
         return dfa.validate()
 
     def recognize_sentence(self, sentence: str) -> bool:
-        dfa = self.to_dfa()
-        dfa.minimize()
-
-        return dfa.recognize_sentence(sentence)
+        return self.to_dfa().recognize_sentence(sentence)

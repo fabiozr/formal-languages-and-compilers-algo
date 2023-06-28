@@ -8,7 +8,7 @@ class ContextFreeGrammar(Grammar):
     def __init__(self):
         super().__init__()
 
-    # (h.2.1) verificação de não determinismo
+    # (g.2.1) verificação de não determinismo
     def has_direct_non_deterministic(self):
         for productions in self.productions.values():
             symbols_to_productions: Dict[Terminal, List[Production]] = {}
@@ -26,7 +26,7 @@ class ContextFreeGrammar(Grammar):
 
         return False
 
-    # (h.2.2) fatoração da gramática
+    # (g.2.2) fatoração da gramática
     def remove_non_determinism(self, retries: int = 0) -> "ContextFreeGrammar":
         import json
 
@@ -98,7 +98,7 @@ class ContextFreeGrammar(Grammar):
 
         return new_grammar.validate()
 
-    # (h.3) eliminação de recursão a esquerda // so funciona se a gramatica nao tiver & producao e unitario
+    # (g.3) eliminação de recursão a esquerda // so funciona se a gramatica nao tiver & producao e unitario
     def remove_left_recursion(self):
         return self._remove_indirect_left_recursion()._remove_direct_left_recursion()
 
@@ -165,7 +165,7 @@ class ContextFreeGrammar(Grammar):
                     new_grammar.add_production(non_terminal, production)
         return new_grammar.validate()
 
-    # (h.4)  Firsts e Follows
+    # (g.4)  Firsts
     def firsts(self):
         firsts: Dict[Union[NonTerminal, Terminal], Set[Terminal]] = {}
         for non_terminal in self.non_terminals:
@@ -198,7 +198,7 @@ class ContextFreeGrammar(Grammar):
                         firsts.add(EPSILON)
         return firsts
 
-    # (h.4)  Firsts e Follows
+    # (g.4.2)  Follows
     def follows(self):
         import json
 

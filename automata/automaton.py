@@ -141,5 +141,6 @@ class Automaton(ABC):
         return self
 
     @abstractmethod
+    # (f) Reconhecimento de sentenças em AF
     def recognize_sentence(self, sentence: str) -> bool:
         pass

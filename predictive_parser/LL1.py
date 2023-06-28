@@ -50,30 +50,38 @@ class PredictiveParserLL1:
             for production in productions:
                 for symbol in self.firsts[non_terminal]:
                     if symbol != EPSILON and production[0] != EPSILON:
-                        print(non_terminal, symbol, production)
                         table[non_terminal][symbol] = production
-                    # table[non_terminal][symbol] = production
                 if production[0] == EPSILON:
                     for symbol in self.follows[non_terminal]:
                         table[non_terminal][symbol] = production
 
         return table
 
-    def parse(self, sentence: str) -> List[Production]:
+    def parse(self, sentence: List[str]) -> List[Production]:
         stack: List[str] = [self.grammar.initial_symbol]
-        productions: List[Production] = []
-        while len(stack) > 0:
+        productions: List[Production] = [[self.grammar.initial_symbol]]
+        sentence.append(END)
+
+        while stack:
             symbol = stack.pop()
+
             if symbol in self.grammar.terminals:
                 if symbol == sentence[0]:
-                    productions.append([symbol])
                     sentence = sentence[1:]
                 else:
                     raise Exception("Could not parse sentence")
             elif symbol in self.grammar.non_terminals:
-                production = self.table[symbol][sentence[0]]
+                production = self.table.get(symbol, {}).get(sentence[0], [])
+
+                if not production:
+                    raise Exception("Could not parse sentence")
+
                 productions.append(production)
-                stack += reversed(production)
+
+                if production[0] != EPSILON:
+                    stack.extend(reversed(production))
+
             else:
                 raise Exception("Could not parse sentence")
+
         return productions
