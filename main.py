@@ -61,7 +61,7 @@ print("-------------------- DFA TO RG / RG TO NFA ---------------------")
 
 regular_grammar = dfa.to_regular_grammar().replace_symbols()
 print(regular_grammar)
-print(regular_grammar.to_nfa(new_nfa))
+print(regular_grammar.to_nfa())
 print(repr(regular_grammar))
 
 print("-------------------- REGULAR EXPRESSION TO DFA ---------------------")
