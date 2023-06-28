@@ -100,7 +100,12 @@ class ContextFreeGrammar(Grammar):
 
     # (g.3) eliminação de recursão a esquerda // so funciona se a gramatica nao tiver & producao e unitario
     def remove_left_recursion(self):
-        return self._remove_indirect_left_recursion()._remove_direct_left_recursion()
+        return (
+            self._remove_epsilon_production()
+            ._remove_unitary_production()
+            ._remove_indirect_left_recursion()
+            ._remove_direct_left_recursion()
+        )
 
     def _remove_indirect_left_recursion(self):
         new_grammar = ContextFreeGrammar()
@@ -163,6 +168,63 @@ class ContextFreeGrammar(Grammar):
             else:
                 for production in productions:
                     new_grammar.add_production(non_terminal, production)
+        return new_grammar.validate()
+
+    def _remove_epsilon_production(self):
+        e_non_terminals = {EPSILON}
+        while True:
+            q_non_terminals = set()
+            for non_terminal in self.non_terminals:
+                if non_terminal not in e_non_terminals:
+                    for production in self.productions[non_terminal]:
+                        is_epsilon_production = True
+                        for symbol in production:
+                            if symbol not in e_non_terminals:
+                                is_epsilon_production = False
+                                break
+                        if is_epsilon_production:
+                            q_non_terminals.add(non_terminal)
+                            break
+            if not q_non_terminals:
+                break
+            e_non_terminals.update(q_non_terminals)
+
+        new_grammar = ContextFreeGrammar()
+        new_grammar.initial_symbol = self.initial_symbol
+
+        for non_terminal, productions in self.productions.items():
+            for production in productions:
+                if production == [EPSILON]:
+                    continue
+
+                new_grammar.add_production(non_terminal, production)
+
+                for i in range(len(production)):
+                    if production[i] in e_non_terminals:
+                        new_production = production[:i] + production[i + 1 :]
+                        new_grammar.add_production(non_terminal, new_production)
+
+        if self.initial_symbol in e_non_terminals:
+            new_initial_symbol = self.initial_symbol + "'"
+            new_grammar.add_production(new_initial_symbol, [self.initial_symbol])
+            new_grammar.add_production(new_initial_symbol, [EPSILON])
+            new_grammar.initial_symbol = new_initial_symbol
+
+        return new_grammar.validate()
+
+    def _remove_unitary_production(self):
+        new_grammar = ContextFreeGrammar()
+        new_grammar.initial_symbol = self.initial_symbol
+
+        for non_terminal, productions in self.productions.items():
+            for production in productions:
+                if production == [non_terminal]:
+                    continue
+                if len(production) == 1 and production[0] in self.non_terminals:
+                    for production2 in self.productions[production[0]]:
+                        new_grammar.add_production(non_terminal, production2)
+                new_grammar.add_production(non_terminal, production)
+
         return new_grammar.validate()
 
     # (g.4)  Firsts
