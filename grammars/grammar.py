@@ -64,7 +64,6 @@ class Grammar(ABC):
         self, non_terminal: NonTerminal, production: List[Union[Terminal, NonTerminal]]
     ) -> None:
         if production in self.productions.get(non_terminal, []):
-            print("TODO - Change this - Production already exists")
             return
         if non_terminal not in self.non_terminals:
             self.productions[non_terminal] = [[]]

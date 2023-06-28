@@ -34,6 +34,8 @@ class NFA(Automaton):
             current_states_str = self._states_to_str(current_states)
 
             for symbol in self.alphabet:
+                if symbol == EPSILON:
+                    continue
                 next_states: Set[State] = set()
 
                 for state in current_states:

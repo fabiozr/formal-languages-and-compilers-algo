@@ -89,8 +89,8 @@ class Automaton(ABC):
         self._complete_transitions()
         return self.validate()
 
-    def replace_states(self):
-        states = [f"q{i}" for i in range(len(self.states))]
+    def replace_states(self, state_letter: str = "q"):
+        states = [f"{state_letter}{i}" for i in range(len(self.states))]
         old_states = sorted(
             self.states, key=lambda state: (state != self.initial_state)
         )

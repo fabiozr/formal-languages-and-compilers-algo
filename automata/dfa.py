@@ -1,5 +1,5 @@
-from automata.constants import *
-from automata.types import *
+from .constants import *
+from .types import *
 from .automaton import Automaton
 from re_to_dfa.operators import *
 from re_to_dfa.node import Node
@@ -131,73 +131,52 @@ class DFA(Automaton):
         }
 
     # (d.1) União de AFD
-    def union(self, automata: "DFA") -> "DFA":
-        # Create a new DFA for the union
-        union_dfa = DFA()
-        union_alphabet = self.alphabet.union(automata.alphabet)
-        union_transitions: Transitions = {}
-        union_final_states = set[str]()
-        union_start_state = "".join(self.initial_state) + "".join(
-            automata.initial_state
-        )
-        # Add states from dfa1 and dfa2 to the union DFA
-        for state1 in self.states:
-            for state2 in automata.states:
-                state1_str = "".join(state1)
-                state2_str = "".join(state2)
-                union_state_str = state1_str + state2_str
-                union_transitions.setdefault(union_state_str, {})
-                for symbol in union_alphabet:
-                    transition1 = self.transitions[state1].get(symbol)
-                    transition2 = automata.transitions[state2].get(symbol)
-                    if state1 in self.final_states or state2 in automata.final_states:
-                        union_final_states.add(union_state_str)
-                    next_state_set = set()
-                    t1_str = "".join(transition1)
-                    t2_str = "".join(transition2)
-                    t_value = t1_str + t2_str
-                    next_state_set.add(t_value)
-                    union_transitions[union_state_str][symbol] = next_state_set
+    def union(self, automata: "DFA"):
+        from .nfa import NFA
 
-        union_dfa.initial_state = "".join(union_start_state)
-        union_dfa.final_states = union_final_states
-        union_dfa._transitions = union_transitions
+        union_nfa = NFA()
+        new_start_state = "q0"
+        union_nfa.initial_state = new_start_state
 
-        return self
+        self.replace_states("p")
+        if self.initial_state is not None:
+            union_nfa.add_transition(new_start_state, EPSILON, {self.initial_state})
+        for transition in self.transitions:
+            union_nfa.transitions[transition] = self.transitions[transition]
+
+        automata.replace_states("r")
+        if automata.initial_state is not None:
+            union_nfa.add_transition(new_start_state, EPSILON, {automata.initial_state})
+        for transition in automata.transitions:
+            union_nfa.transitions[transition] = automata.transitions[transition]
+
+        union_nfa.final_states = self.final_states.union(automata.final_states)
+
+        return union_nfa
 
     # (d.2) Interseção de AFD
-    def intersection(self, automata: "DFA") -> "DFA":
-        intersected_dfa = DFA()
-        intersected_final_states = set()
-        intersected_start_state = set()
-        initial_state = "".join(self.initial_state) + "".join(automata.initial_state)
-        intersected_start_state.add(initial_state)
-        intersected_alphabet = self.alphabet.intersection(automata.alphabet)
-        intersected_transitions = {}
+    def intersection(self, automata: "DFA"):
+        # Feito com base na lei de Morgan
+        # L1 ∩ L2 = (L1' ∪ L2')'
+        # A interseção de dois conjuntos é igual ao complemento da união dos complementos dos conjuntos
+        first_automata_complement = self.complement()
+        second_automata_complement = automata.complement()
 
-        for state1 in self.states:
-            for state2 in automata.states:
-                state1_str = "".join(state1)
-                state2_str = "".join(state2)
-                intersected_state_str = state1_str + state2_str
-                intersected_transitions.setdefault(intersected_state_str, {})
-                for symbol in intersected_alphabet:
-                    transition1 = self.transitions[state1].get(symbol)
-                    transition2 = automata.transitions[state2].get(symbol)
-                    if state1 in self.final_states and state2 in automata.final_states:
-                        intersected_final_states.add(intersected_state_str)
-                    t_set = set()
-                    t1_str = "".join(transition1)
-                    t2_str = "".join(transition2)
-                    t_value = t1_str + t2_str
-                    t_set.add(t_value)
-                    intersected_transitions[intersected_state_str][symbol] = t_set
+        union_of_complements = first_automata_complement.union(
+            second_automata_complement
+        ).to_dfa()
 
-        intersected_dfa.initial_state = "".join(intersected_start_state)
-        intersected_dfa.final_states = intersected_final_states
-        intersected_dfa._transitions = intersected_transitions
+        intersected_dfa = union_of_complements.complement()
 
         return intersected_dfa
+
+    def complement(self):
+        complemented_dfa = DFA()
+        complemented_dfa.initial_state = self.initial_state
+        complemented_dfa.final_states = self.states - self.final_states
+        complemented_dfa._transitions = self.transitions
+
+        return complemented_dfa
 
     def from_syntax_tree(self, tree):
         dstates = [frozenset(tree.root.firstpos)]
