@@ -30,7 +30,7 @@ class ContextFreeGrammar(Grammar):
     def remove_non_determinism(self, retries: int = 0) -> "ContextFreeGrammar":
         import json
 
-        new_grammar = self._remove_direct_non_determinism()
+        new_grammar = self._remove_indirect_non_determinism()
 
         self_hash = hash(json.dumps(self.productions, sort_keys=True))
         new_grammar_hash = hash(json.dumps(new_grammar.productions, sort_keys=True))
@@ -67,9 +67,12 @@ class ContextFreeGrammar(Grammar):
                     new_grammar.add_production(non_terminal, [symbol, new_non_terminal])
 
                     for symbol_production in symbol_productions:
-                        new_grammar.add_production(
-                            new_non_terminal, symbol_production[1:]
-                        )
+                        if len(symbol_production) == 1:
+                            new_grammar.add_production(new_non_terminal, [EPSILON])
+                        else:
+                            new_grammar.add_production(
+                                new_non_terminal, symbol_production[1:]
+                            )
                 else:
                     for symbol_production in symbol_productions:
                         new_grammar.add_production(non_terminal, symbol_production)
@@ -91,29 +94,19 @@ class ContextFreeGrammar(Grammar):
                     new_grammar.add_production(non_terminal, production)
             if new_grammar.has_direct_non_deterministic():
                 new_grammar = new_grammar._remove_direct_non_determinism()
-                self = new_grammar
             else:
                 new_grammar._productions[non_terminal] = productions
-                self = new_grammar
 
         return new_grammar.validate()
 
-    # (g.3) eliminação de recursão a esquerda // so funciona se a gramatica nao tiver & producao e unitario
+    # (g.3) eliminação de recursão a esquerda
     def remove_left_recursion(self):
-        return (
-            self._remove_epsilon_production()
-            ._remove_unitary_production()
-            ._remove_indirect_left_recursion()
-            ._remove_direct_left_recursion()
-        )
+        return self._remove_indirect_left_recursion()._remove_direct_left_recursion()
 
     def _remove_indirect_left_recursion(self):
         new_grammar = ContextFreeGrammar()
         new_grammar.initial_symbol = self.initial_symbol
-
-        non_terminals = sorted(
-            self.non_terminals, key=lambda x: x[0] != self.initial_symbol
-        )
+        non_terminals = sorted(self.non_terminals)
         for i in range(len(non_terminals)):
             for j in range(i):
                 productions_i = self.productions[non_terminals[i]]
@@ -129,19 +122,10 @@ class ContextFreeGrammar(Grammar):
                     else:
                         new_grammar.add_production(non_terminals[i], production_i)
 
-        # productions_not_added = {
-        #     non_terminal: productions
-        #     for non_terminal, productions in self.productions.items()
-        #     if non_terminal not in new_grammar.non_terminals
-        # }
-
-        # new_grammar._productions.update(productions_not_added)
-
         for non_terminal in non_terminals:
             if non_terminal not in new_grammar.non_terminals:
                 for production in self.productions[non_terminal]:
                     new_grammar.add_production(non_terminal, production)
-
         return new_grammar.validate()
 
     def _remove_direct_left_recursion(self):
@@ -170,7 +154,7 @@ class ContextFreeGrammar(Grammar):
                     new_grammar.add_production(non_terminal, production)
         return new_grammar.validate()
 
-    def _remove_epsilon_production(self):
+    def _remove_epsilon_productions(self):
         e_non_terminals = {EPSILON}
         while True:
             q_non_terminals = set()
@@ -196,34 +180,61 @@ class ContextFreeGrammar(Grammar):
             for production in productions:
                 if production == [EPSILON]:
                     continue
-
                 new_grammar.add_production(non_terminal, production)
 
                 for i in range(len(production)):
                     if production[i] in e_non_terminals:
                         new_production = production[:i] + production[i + 1 :]
-                        new_grammar.add_production(non_terminal, new_production)
+                        if new_production:
+                            new_grammar.add_production(non_terminal, new_production)
 
         if self.initial_symbol in e_non_terminals:
             new_initial_symbol = self.initial_symbol + "'"
             new_grammar.add_production(new_initial_symbol, [self.initial_symbol])
             new_grammar.add_production(new_initial_symbol, [EPSILON])
             new_grammar.initial_symbol = new_initial_symbol
-
         return new_grammar.validate()
 
-    def _remove_unitary_production(self):
+    def _remove_unitary_productions(self):
         new_grammar = ContextFreeGrammar()
         new_grammar.initial_symbol = self.initial_symbol
 
+        reachable_non_terminals: Dict[str, Set[str]] = {}
+
+        for non_terminal in self.non_terminals:
+            reachable_non_terminals[non_terminal] = {non_terminal}
+
+            for production in self.productions[non_terminal]:
+                if len(production) == 1 and production[0] in self.non_terminals:
+                    reachable_non_terminals[non_terminal].add(production[0])
+
+        changed = True
+        pass_count = 0
+
+        while changed:
+            changed = False
+
+            for non_terminal in reachable_non_terminals.copy():
+                for reachable_non_terminal in reachable_non_terminals[
+                    non_terminal
+                ].copy():
+                    if reachable_non_terminals[non_terminal].update(
+                        reachable_non_terminals[reachable_non_terminal]
+                    ):
+                        changed = True
+            if changed == False and pass_count < len(self.non_terminals):
+                changed = True
+                pass_count += 1
+
         for non_terminal, productions in self.productions.items():
             for production in productions:
-                if production == [non_terminal]:
-                    continue
                 if len(production) == 1 and production[0] in self.non_terminals:
-                    for production2 in self.productions[production[0]]:
-                        new_grammar.add_production(non_terminal, production2)
+                    continue
                 new_grammar.add_production(non_terminal, production)
+        for non_terminal in reachable_non_terminals:
+            for reachable_non_terminal in reachable_non_terminals[non_terminal]:
+                for production in new_grammar.productions[reachable_non_terminal]:
+                    new_grammar.add_production(non_terminal, production)
 
         return new_grammar.validate()
 

@@ -40,6 +40,14 @@ class PredictiveParserLL1:
         self.grammar = grammar
         self.firsts = self.grammar.firsts()
         self.follows = self.grammar.follows()
+
+        for non_terminal in self.grammar.non_terminals:
+            if (
+                EPSILON in self.firsts[non_terminal]
+                and non_terminal in self.follows[non_terminal]
+            ):
+                raise Exception(f"First({non_terminal}) ∩ Follow({non_terminal}) != ∅")
+
         self.table = self._build_table()
         return self
 
